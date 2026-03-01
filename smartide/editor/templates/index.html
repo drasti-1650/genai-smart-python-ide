@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GenAI Smart IDE</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 15px 20px;
+            background-color: #111;
+            font-size: 20px;
+            font-weight: bold;
+            border-bottom: 1px solid #333;
+        }
+
+        .top-bar {
+            display: flex;
+            gap: 10px;
+            padding: 15px 20px;
+        }
+
+        #prompt {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .generate-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .run-btn {
+            background-color: #2196F3;
+            color: white;
+            width: 100%;
+            font-size: 16px;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #editor {
+            width: 60%;
+            height: 100%;
+        }
+
+        .terminal-panel {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #333;
+            background-color: #0d1117;
+        }
+
+        .terminal-header {
+            padding: 10px;
+            background: #161b22;
+            border-bottom: 1px solid #333;
+            font-size: 14px;
+            color: #58a6ff;
+        }
+
+        #terminal {
+            flex: 1;
+            padding: 12px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            color: #00ff00;
+            background-color: black;
+            outline: none;
+            caret-color: white;
+        }
+
+        .bottom-bar {
+            padding: 10px 20px;
+            border-top: 1px solid #333;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>🚀 GenAI Smart Python IDE</header>
+
+<div class="top-bar">
+    <input type="text" id="prompt" placeholder="Describe your program here...">
+    <button class="generate-btn" onclick="generateCode()">Generate</button>
+</div>
+
+<div class="main">
+
+    <div id="editor"></div>
+
+    <div class="terminal-panel">
+        <div class="terminal-header">TERMINAL</div>
+        <div id="terminal" tabindex="0"></div>
+    </div>
+
+</div>
+
+<div class="bottom-bar">
+    <button class="run-btn" onclick="runCode()">▶ Run Code</button>
+</div>
+
+<script src="https://unpkg.com/monaco-editor@latest/min/vs/loader.js"></script>
+
+<script>
+require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@latest/min/vs' }});
+require(["vs/editor/editor.main"], function () {
+    window.editor = monaco.editor.create(document.getElementById('editor'), {
+        value: "print('Hello Drashti')",
+        language: "python",
+        theme: "vs-dark",
+        automaticLayout: true
+    });
+});
+
+let terminal = document.getElementById("terminal");
+let socket = new WebSocket("ws://" + window.location.host + "/ws/terminal/");
+
+// -------------------- WEBSOCKET --------------------
+
+socket.onopen = function() {
+    terminal.innerText += "✅ Connected to server\n";
+};
+
+socket.onmessage = function(event) {
+    let data = JSON.parse(event.data);
+    terminal.innerText += data.output;
+    terminal.scrollTop = terminal.scrollHeight;
+};
+
+socket.onerror = function() {
+    terminal.innerText += "\n❌ WebSocket Error\n";
+};
+
+// -------------------- RUN CODE --------------------
+
+function runCode() {
+
+    let code = editor.getValue();
+
+    terminal.innerText = "▶ Running...\n";
+
+    socket.send(JSON.stringify({
+        code: code
+    }));
+
+    terminal.focus();
+}
+
+// -------------------- REAL TERMINAL INPUT --------------------
+
+terminal.addEventListener("keydown", function(e) {
+
+    if (socket.readyState !== WebSocket.OPEN) return;
+
+    e.preventDefault(); // Prevent browser default behavior
+
+    // BACKSPACE
+    if (e.key === "Backspace") {
+        terminal.innerText = terminal.innerText.slice(0, -1);
+        socket.send(JSON.stringify({ input: "\b" }));
+        return;
+    }
+
+    // ENTER
+    if (e.key === "Enter") {
+        terminal.innerText += "\n";
+        socket.send(JSON.stringify({ input: "\n" }));
+        terminal.scrollTop = terminal.scrollHeight;
+        return;
+    }
+
+    // NORMAL CHARACTERS
+    if (e.key.length === 1) {
+        terminal.innerText += e.key;
+        socket.send(JSON.stringify({ input: e.key }));
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+});
+
+// -------------------- GENERATE --------------------
+
+function generateCode() {
+
+    let promptText = document.getElementById("prompt").value;
+
+    if (!promptText) {
+        alert("Please enter a prompt.");
+        return;
+    }
+
+    fetch('/generate/', {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({ prompt: promptText })
+    })
+    .then(response => response.json())
+    .then(data => {
+        editor.setValue(data.code);
+    });
+}
+</script>
+
+</body>
+</html>
