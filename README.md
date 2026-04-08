@@ -1,6 +1,7 @@
 # 🚀 GenAI Smart Python IDE
 
-An AI-powered Smart Python IDE built using Django, WebSockets, and Ollama for local AI code generation.
+An AI-powered Smart Python IDE built using Django, WebSockets, and Ollama for local AI code generation
+
 
 ---
 
